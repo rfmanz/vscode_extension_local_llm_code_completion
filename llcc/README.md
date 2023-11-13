@@ -6,3 +6,9 @@ llama_cpp.server --model models/mistral-7b-instruct-v0.1.Q4_K_M.gguf --n_gpu_lay
 ```
 2. Send page content or cell content to the server. Wait for inference and response. 
 3. Make response appear as ghost completion a la copilot. 
+
+
+https://thakkarparth007.github.io/copilot-explorer/posts/copilot-internals#inlineghosttext
+
+https://thakkarparth007.github.io/copilot-explorer/codeviz/templates/code-viz.html#m4969&pos=172:6
+
