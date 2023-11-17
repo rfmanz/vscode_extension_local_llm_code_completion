@@ -10,6 +10,11 @@ let logStream = null;
 function activate(context) {
 	// Define the path to the log file
 	const logFilePath = path.join(context.extensionPath, 'server.log');
+	logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+	logStream.on('error', (err) => {
+		console.error(`Log Stream Error: ${err}`);
+	});
+
 
 	// Define the path to the conda executable and models directory
 	const condaBasePath = '/home/rafael/mambaforge/bin/';
@@ -17,6 +22,60 @@ function activate(context) {
 
 	// Construct the command to activate conda and start the server
 	const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model mistral-7b-instruct-v0.1.Q4_K_M.gguf --n_gpu_layers 35"`;
+
+
+	// Log opening of a notebook
+	let notebookOpenListener = vscode.workspace.onDidOpenNotebookDocument(notebook => {
+		logStream.write(`\nNotebook opened: ${notebook.uri.fsPath} at ${new Date().toISOString()}\n`);
+	});
+	context.subscriptions.push(notebookOpenListener);
+
+	// let notebookChangeListener = vscode.workspace.onDidChangeNotebookDocument((e) => {
+	// 	console.log("Notebook change detected"); // Debugging line
+	// 	console.log("Content changes:", e.contentChanges); // Check the content changes
+
+
+
+	// 	const activeNotebook = vscode.window.activeNotebookEditor;
+	// 	console.log(activeNotebook.selection);
+
+
+	// 	e.contentChanges.forEach(change => {
+	// 		console.log(`Change kind: ${change.kind}`); // Log the kind of each change
+
+	// 		if (change.kind === vscode.NotebookCellChangeKind.Content) {
+	// 			const cellContent = change.cell.document.getText();
+	// 			console.log(`Cell content changed: ${cellContent}`); // Debugging line
+	// 		}
+	// 	});
+	// });
+
+	// context.subscriptions.push(notebookChangeListener);
+
+	let notebookChangeListener = vscode.workspace.onDidChangeNotebookDocument((e) => {
+		console.log("Notebook change detected");
+		console.log("All content changes:", e.contentChanges);
+	
+		e.contentChanges.forEach(change => {
+			console.log(`Change kind: ${change.kind}`); // This will tell us what kind of change it is
+	
+			// Log detailed change object
+			console.log(change);
+	
+			// Attempt to log the text content if it's a content change
+			if (change.kind === 1 /* assuming 1 is for content change */) {
+				// Make sure we're accessing the document property correctly
+				if (change.cell && change.cell.document) {
+					const cellContent = change.cell.document.getText();
+					console.log(`Cell content: ${cellContent}`);
+				}
+			}
+		});
+	});
+	
+	
+
+	context.subscriptions.push(notebookChangeListener);
 
 	let disposableToggleServer = vscode.commands.registerCommand('llcc.toggleServer', function () {
 		if (serverRunning) {
@@ -43,17 +102,17 @@ function activate(context) {
 			});
 		} else {
 			// Start the server
-			logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+			// logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 			logStream.write(`\nStarting server at ${new Date().toISOString()}\n`);
 			serverProcess = spawn(command, { shell: true });
 			serverProcess.stdout.pipe(logStream);
 			serverProcess.stderr.pipe(logStream);
 
-			serverProcess.on('close', code => {
-				logStream.write(`Server process exited with code ${code} at ${new Date().toISOString()}\n`);
-				logStream.end();
-				serverRunning = false;
-			});
+			// serverProcess.on('close', code => {
+			// 	logStream.write(`Server process exited with code ${code} at ${new Date().toISOString()}\n`);
+			// 	logStream.end();
+			// 	serverRunning = false;
+			// });
 
 			serverRunning = true;
 			vscode.window.showInformationMessage('Server started.');
@@ -61,20 +120,81 @@ function activate(context) {
 	});
 
 	context.subscriptions.push(disposableToggleServer);
+
 }
+
+
+
+
+// function sendMessageToServer(prompt) {
+// 	const data = JSON.stringify({
+// 		messages: [
+// 			{
+// 				content: "You are a helpful assistant.",
+// 				role: "system"
+// 			},
+// 			{
+// 				content: prompt,
+// 				role: "user"
+// 			}
+// 		]
+// 	});
+
+// 	const options = {
+// 		hostname: 'localhost',
+// 		port: 8000,
+// 		path: '/v1/chat/completions',
+// 		method: 'POST',
+// 		headers: {
+// 			'Content-Type': 'application/json',
+// 			'Accept': 'application/json'
+// 		},
+// 	};
+
+// 	const req = http.request(options, (res) => {
+// 		let responseData = '';
+
+// 		res.on('data', (chunk) => {
+// 			responseData += chunk;
+// 		});
+
+// 		res.on('end', () => {
+// 			try {
+// 				const responseJson = JSON.parse(responseData);
+// 				console.log(responseJson.choices[0].message.content);
+// 			} catch (error) {
+// 				console.error(`Error parsing response: ${error.message}`);
+// 			}
+// 		});
+// 	});
+
+// 	req.on('error', (error) => {
+// 		console.error(`Error: ${error.message}`);
+// 	});
+
+// 	req.write(data);
+// 	req.end();
+// }
+
 
 function deactivate() {
 	// Add logic here to stop the server when the extension is deactivated
 	if (serverRunning) {
 		// Try to stop the server using the PID from lsof
+		logStream.write(`\nStopping server at ${new Date().toISOString()}\n`);
 		exec("lsof -i tcp:8000 -t", (err, stdout, stderr) => {
 			if (stdout) {
 				const pid = stdout.trim();
 				exec(`kill -9 ${pid}`);
+
 			}
+
 		});
 	}
 }
+
+
+
 
 module.exports = {
 	activate,
