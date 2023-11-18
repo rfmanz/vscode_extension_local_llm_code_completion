@@ -23,10 +23,13 @@
       {
         "command": "llcc.toggleServer",
         "title": "Toggle Server"
+      },
+      {     
+        "command": "llcc.to_llm",
+        "title": "to llm"
       }
     ]
   },
-
   "scripts": {
     "lint": "eslint .",
     "pretest": "npm run lint",

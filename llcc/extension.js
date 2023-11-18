@@ -2,13 +2,16 @@ const vscode = require('vscode');
 const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const http = require('http')
 
 let serverProcess = null;
 let serverRunning = false;
 let logStream = null;
+let text = '';
 
 function activate(context) {
 	// Define the path to the log file
+
 	const logFilePath = path.join(context.extensionPath, 'server.log');
 	logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 	logStream.on('error', (err) => {
@@ -23,59 +26,72 @@ function activate(context) {
 	// Construct the command to activate conda and start the server
 	const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model mistral-7b-instruct-v0.1.Q4_K_M.gguf --n_gpu_layers 35"`;
 
-
 	// Log opening of a notebook
 	let notebookOpenListener = vscode.workspace.onDidOpenNotebookDocument(notebook => {
 		logStream.write(`\nNotebook opened: ${notebook.uri.fsPath} at ${new Date().toISOString()}\n`);
 	});
 	context.subscriptions.push(notebookOpenListener);
 
-	// let notebookChangeListener = vscode.workspace.onDidChangeNotebookDocument((e) => {
-	// 	console.log("Notebook change detected"); // Debugging line
-	// 	console.log("Content changes:", e.contentChanges); // Check the content changes
+	// let notebookActiveNotebookListener = vscode.window.onDidChangeActiveTextEditor(editor => {
+	// 	// Check if the new active editor is a .ipynb file
+	// 	if (editor && editor.document && editor.document.uri.fsPath.endsWith('.ipynb')) {
+	// 		logStream.write(`\nNotebook active: ${editor.document.getText()}\n`);
+	// 		// logStream.write(`\nNotebook active: ${editor.()}\n`
+
+	// 	}
+	// });
+
+	// Listener for text changes in documents
+	let textChangeListener = vscode.workspace.onDidChangeTextDocument(event => {
+		if (event.document.uri.fsPath.endsWith('.ipynb')) {
+			text = event.document.getText();  // Update 'text' with the current document content
+			console.log(text);
+		}
+	});
+
+	let disposable = vscode.commands.registerCommand('llcc.to_llm', () => {
+		if (text !== '') {
+			sendMessageToServer(text);
+		} else {
+			console.log('No text available to send');
+		}
+	});
+	context.subscriptions.push(textChangeListener, disposable);
+
+	// Add the listener to the context's subscriptions to ensure it's disposed when the extension is deactivated
+	// context.subscriptions.push(notebookActiveNotebookListener);
 
 
 
-	// 	const activeNotebook = vscode.window.activeNotebookEditor;
-	// 	console.log(activeNotebook.selection);
+	// logNotebookCellDocuments();
 
+
+	let notebookChangeListener = vscode.workspace.onDidChangeNotebookDocument((e) => {
+
+		console.log("All content changes:", e.document.content());
+	});
 
 	// 	e.contentChanges.forEach(change => {
-	// 		console.log(`Change kind: ${change.kind}`); // Log the kind of each change
+	// 		console.log(`Change kind: ${change.kind}`); // This will tell us what kind of change it is
 
-	// 		if (change.kind === vscode.NotebookCellChangeKind.Content) {
-	// 			const cellContent = change.cell.document.getText();
-	// 			console.log(`Cell content changed: ${cellContent}`); // Debugging line
+	// 		// Log detailed change object
+	// 		console.log(change);
+
+	// 		// Attempt to log the text content if it's a content change
+	// 		if (change.kind === 1 /* assuming 1 is for content change */) {
+	// 			// Make sure we're accessing the document property correctly
+	// 			if (change.cell && change.cell.document) {
+	// 				const cellContent = change.cell.document.getText();
+	// 				console.log(`Cell content: ${cellContent}`);
+	// 			}
 	// 		}
 	// 	});
 	// });
 
+
+
 	// context.subscriptions.push(notebookChangeListener);
 
-	let notebookChangeListener = vscode.workspace.onDidChangeNotebookDocument((e) => {
-		console.log("Notebook change detected");
-		console.log("All content changes:", e.contentChanges);
-	
-		e.contentChanges.forEach(change => {
-			console.log(`Change kind: ${change.kind}`); // This will tell us what kind of change it is
-	
-			// Log detailed change object
-			console.log(change);
-	
-			// Attempt to log the text content if it's a content change
-			if (change.kind === 1 /* assuming 1 is for content change */) {
-				// Make sure we're accessing the document property correctly
-				if (change.cell && change.cell.document) {
-					const cellContent = change.cell.document.getText();
-					console.log(`Cell content: ${cellContent}`);
-				}
-			}
-		});
-	});
-	
-	
-
-	context.subscriptions.push(notebookChangeListener);
 
 	let disposableToggleServer = vscode.commands.registerCommand('llcc.toggleServer', function () {
 		if (serverRunning) {
@@ -120,61 +136,61 @@ function activate(context) {
 	});
 
 	context.subscriptions.push(disposableToggleServer);
-
 }
 
 
 
 
-// function sendMessageToServer(prompt) {
-// 	const data = JSON.stringify({
-// 		messages: [
-// 			{
-// 				content: "You are a helpful assistant.",
-// 				role: "system"
-// 			},
-// 			{
-// 				content: prompt,
-// 				role: "user"
-// 			}
-// 		]
-// 	});
 
-// 	const options = {
-// 		hostname: 'localhost',
-// 		port: 8000,
-// 		path: '/v1/chat/completions',
-// 		method: 'POST',
-// 		headers: {
-// 			'Content-Type': 'application/json',
-// 			'Accept': 'application/json'
-// 		},
-// 	};
+function sendMessageToServer(prompt) {
+	const data = JSON.stringify({
+		messages: [
+			{
+				content: "You are a helpful assistant.",
+				role: "system"
+			},
+			{
+				content: prompt,
+				role: "user"
+			}
+		]
+	});
 
-// 	const req = http.request(options, (res) => {
-// 		let responseData = '';
+	const options = {
+		hostname: 'localhost',
+		port: 8000,
+		path: '/v1/chat/completions',
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Accept': 'application/json'
+		},
+	};
 
-// 		res.on('data', (chunk) => {
-// 			responseData += chunk;
-// 		});
+	const req = http.request(options, (res) => {
+		let responseData = '';
 
-// 		res.on('end', () => {
-// 			try {
-// 				const responseJson = JSON.parse(responseData);
-// 				console.log(responseJson.choices[0].message.content);
-// 			} catch (error) {
-// 				console.error(`Error parsing response: ${error.message}`);
-// 			}
-// 		});
-// 	});
+		res.on('data', (chunk) => {
+			responseData += chunk;
+		});
 
-// 	req.on('error', (error) => {
-// 		console.error(`Error: ${error.message}`);
-// 	});
+		res.on('end', () => {
+			try {
+				const responseJson = JSON.parse(responseData);
+				console.log(responseJson.choices[0].message.content);
+			} catch (error) {
+				console.error(`Error parsing response: ${error.message}`);
+			}
+		});
+	});
 
-// 	req.write(data);
-// 	req.end();
-// }
+	req.on('error', (error) => {
+		console.error(`Error: ${error.message}`);
+	});
+
+	req.write(data);
+	req.end();
+}
 
 
 function deactivate() {
