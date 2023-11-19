@@ -9,93 +9,84 @@ let serverRunning = false;
 let logStream = null;
 let text = '';
 
+
 function activate(context) {
-	// Define the path to the log file
 
 	const logFilePath = path.join(context.extensionPath, 'server.log');
 	logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 	logStream.on('error', (err) => {
 		console.error(`Log Stream Error: ${err}`);
 	});
-
-
-	// Define the path to the conda executable and models directory
 	const condaBasePath = '/home/rafael/mambaforge/bin/';
 	const modelsPath = '/home/rafael/ml/llama.cpp/models';
 
-	// Construct the command to activate conda and start the server
 	const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model mistral-7b-instruct-v0.1.Q4_K_M.gguf --n_gpu_layers 35"`;
 
-	// Log opening of a notebook
-	let notebookOpenListener = vscode.workspace.onDidOpenNotebookDocument(notebook => {
-		logStream.write(`\nNotebook opened: ${notebook.uri.fsPath} at ${new Date().toISOString()}\n`);
-	});
-	context.subscriptions.push(notebookOpenListener);
+	
 
-	// let notebookActiveNotebookListener = vscode.window.onDidChangeActiveTextEditor(editor => {
-	// 	// Check if the new active editor is a .ipynb file
-	// 	if (editor && editor.document && editor.document.uri.fsPath.endsWith('.ipynb')) {
-	// 		logStream.write(`\nNotebook active: ${editor.document.getText()}\n`);
-	// 		// logStream.write(`\nNotebook active: ${editor.()}\n`
+	// const activeEditor = vscode.NotebookDocument;
+	// console.log(vscode.window.activeNotebookEditor.selection[0]);
 
-	// 	}
+
+
+	// let nblistener = vscode.workspace.onDidChangeNotebookDocument(event => {
+
+	// 	const activeCell = vscode.window.activeNotebookEditor.notebook.cellAt(vscode.window.activeNotebookEditor.selections[0].end)
+
+	// 	const edit = new vscode.WorkspaceEdit();
+	// 	const cellRange = new vscode.Range(activeCell.document.lineAt(0).range.start, activeCell.document.lineAt(activeCell.document.lineCount - 1).range.end);
+	// 	edit.replace(activeCell.document.uri, cellRange, "farts");
+	// 	const endOfCell = activeCell.document.lineAt(activeCell.document.lineCount - 1).range.end;
+	// 	edit.insert(activeCell.document.uri, endOfCell, '\n' + 'farts2');
+
+	// 	vscode.workspace.applyEdit(edit);
+
+		// const uri = vscode.window.activeNotebookEditor.notebook.uri
+		// edit.replace(uri, cellRange, response);
+
+		// console.log(vscode.window.activeNotebookEditor(event2 => { event2.}))
+
+
 	// });
+	// context.subscriptions.push(nblistener);
 
-	// Listener for text changes in documents
+
 	let textChangeListener = vscode.workspace.onDidChangeTextDocument(event => {
 		if (event.document.uri.fsPath.endsWith('.ipynb')) {
-			text = event.document.getText();  // Update 'text' with the current document content
+			text = event.document.getText();
 			console.log(text);
+			// const activeCell = vscode.window.activeNotebookEditor.notebook.cellAt(vscode.window.activeNotebookEditor.selections[0].end);
+			// console.log(activeCell)
+			// const endOfCell = activeCell.document.lineAt(activeCell.document.lineCount - 1).range.end;
+			// console.log(endOfCell)
 		}
 	});
 
-	let disposable = vscode.commands.registerCommand('llcc.to_llm', () => {
+
+	let disposable = vscode.commands.registerCommand('llcc.to_llm', async () => {
 		if (text !== '') {
-			sendMessageToServer(text);
+			try {
+				const responseContent = await sendMessageToServer(text);
+	
+				const activeCell = vscode.window.activeNotebookEditor.notebook.cellAt(vscode.window.activeNotebookEditor.selections[0].end);
+				console.log(activeCell)
+				const endOfCell = activeCell.document.lineAt(activeCell.document.lineCount - 1).range.end;
+	
+				// Create a WorkspaceEdit and insert the responseContent
+				const edit = new vscode.WorkspaceEdit();
+				edit.insert(activeCell.document.uri, endOfCell, '\n' + responseContent);
+				await vscode.workspace.applyEdit(edit);
+			} catch (error) {
+				console.error('Error sending message to server:', error);
+			}
 		} else {
 			console.log('No text available to send');
 		}
 	});
-	context.subscriptions.push(textChangeListener, disposable);
-
-	// Add the listener to the context's subscriptions to ensure it's disposed when the extension is deactivated
-	// context.subscriptions.push(notebookActiveNotebookListener);
-
-
-
-	// logNotebookCellDocuments();
-
-
-	let notebookChangeListener = vscode.workspace.onDidChangeNotebookDocument((e) => {
-
-		console.log("All content changes:", e.document.content());
-	});
-
-	// 	e.contentChanges.forEach(change => {
-	// 		console.log(`Change kind: ${change.kind}`); // This will tell us what kind of change it is
-
-	// 		// Log detailed change object
-	// 		console.log(change);
-
-	// 		// Attempt to log the text content if it's a content change
-	// 		if (change.kind === 1 /* assuming 1 is for content change */) {
-	// 			// Make sure we're accessing the document property correctly
-	// 			if (change.cell && change.cell.document) {
-	// 				const cellContent = change.cell.document.getText();
-	// 				console.log(`Cell content: ${cellContent}`);
-	// 			}
-	// 		}
-	// 	});
-	// });
-
-
-
-	// context.subscriptions.push(notebookChangeListener);
 
 
 	let disposableToggleServer = vscode.commands.registerCommand('llcc.toggleServer', function () {
 		if (serverRunning) {
-			// Check if the server is running on localhost:8000
 			exec("lsof -i tcp:8000 -t", (err, stdout, stderr) => {
 				if (err) {
 					// Handle the error if no server is found running on port 8000
@@ -117,79 +108,126 @@ function activate(context) {
 				}
 			});
 		} else {
-			// Start the server
-			// logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+
 			logStream.write(`\nStarting server at ${new Date().toISOString()}\n`);
 			serverProcess = spawn(command, { shell: true });
 			serverProcess.stdout.pipe(logStream);
 			serverProcess.stderr.pipe(logStream);
-
-			// serverProcess.on('close', code => {
-			// 	logStream.write(`Server process exited with code ${code} at ${new Date().toISOString()}\n`);
-			// 	logStream.end();
-			// 	serverRunning = false;
-			// });
-
 			serverRunning = true;
 			vscode.window.showInformationMessage('Server started.');
 		}
 	});
 
-	context.subscriptions.push(disposableToggleServer);
+	context.subscriptions.push(disposableToggleServer,textChangeListener);
 }
 
 
 
+// function sendMessageToServer(prompt) {
+// 	const data = JSON.stringify({
+// 		messages: [
+// 			{
+// 				content: "You are a helpful assistant.",
+// 				role: "system"
+// 			},
+// 			{
+// 				content: prompt,
+// 				role: "user"
+// 			}
+// 		]
+// 	});
+
+// 	const options = {
+// 		hostname: 'localhost',
+// 		port: 8000,
+// 		path: '/v1/chat/completions',
+// 		method: 'POST',
+// 		headers: {
+// 			'Content-Type': 'application/json',
+// 			'Accept': 'application/json'
+// 		},
+// 	};
+
+// 	const req = http.request(options, (res) => {
+// 		let responseData = '';
+
+// 		res.on('data', (chunk) => {
+// 			responseData += chunk;
+// 		});
+
+// 		res.on('end', () => {
+// 			try {
+// 				const responseJson = JSON.parse(responseData);
+// 				console.log(responseJson.choices[0].message.content);
+// 			} catch (error) {
+// 				console.error(`Error parsing response: ${error.message}`);
+// 			}
+// 		});
+// 	});
+
+// 	req.on('error', (error) => {
+// 		console.error(`Error: ${error.message}`);
+// 	});
+
+// 	req.write(data);
+// 	req.end();
+// }
 
 
-function sendMessageToServer(prompt) {
-	const data = JSON.stringify({
-		messages: [
-			{
-				content: "You are a helpful assistant.",
-				role: "system"
-			},
-			{
-				content: prompt,
-				role: "user"
-			}
-		]
-	});
+async function sendMessageToServer(prompt) {
+    const data = JSON.stringify({
+        messages: [
+            {
+                content: "You are a helpful assistant.",
+                role: "system"
+            },
+            {
+                content: prompt,
+                role: "user"
+            }
+        ]
+    });
 
-	const options = {
-		hostname: 'localhost',
-		port: 8000,
-		path: '/v1/chat/completions',
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'Accept': 'application/json'
-		},
-	};
+    const options = {
+        hostname: 'localhost',
+        port: 8000,
+        path: '/v1/chat/completions',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+    };
 
-	const req = http.request(options, (res) => {
-		let responseData = '';
+    // Return a new Promise
+    return new Promise((resolve, reject) => {
+        const req = http.request(options, (res) => {
+            let responseData = '';
 
-		res.on('data', (chunk) => {
-			responseData += chunk;
-		});
+            res.on('data', (chunk) => {
+                responseData += chunk;
+            });
 
-		res.on('end', () => {
-			try {
-				const responseJson = JSON.parse(responseData);
-				console.log(responseJson.choices[0].message.content);
-			} catch (error) {
-				console.error(`Error parsing response: ${error.message}`);
-			}
-		});
-	});
+            res.on('end', () => {
+                try {
+                    const responseJson = JSON.parse(responseData);
+                    // Resolve the promise with the content
+                    resolve(responseJson.choices[0].message.content);
+                } catch (error) {
+                    console.error(`Error parsing response: ${error.message}`);
+                    reject(error);
+                }
+            });
+        });
 
-	req.on('error', (error) => {
-		console.error(`Error: ${error.message}`);
-	});
+        req.on('error', (error) => {
+            console.error(`Error: ${error.message}`);
+            reject(error);
+        });
 
-	req.write(data);
-	req.end();
+        req.write(data);
+        req.end();
+    });
 }
 
 
