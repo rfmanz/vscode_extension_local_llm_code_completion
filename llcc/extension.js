@@ -22,11 +22,10 @@ function activate(context) {
 
 	const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model mistral-7b-instruct-v0.1.Q4_K_M.gguf --n_gpu_layers 35"`;
 
-	
-	
 
-	// const activeEditor = vscode.NotebookDocument;
-	// console.log(vscode.window.activeNotebookEditor.selection[0]);
+	// const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model /mnt/d/Downloads/wizardcoder-python-13b-v1.0.Q4_0.gguf --n_gpu_layers 40" `;
+
+	// const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model /mnt/d/Downloads/wizardcoder-python-13b-v1.0.Q4_0.gguf --n_gpu_layers 40" `;
 
 
 
@@ -42,10 +41,10 @@ function activate(context) {
 
 	// 	vscode.workspace.applyEdit(edit);
 
-		// const uri = vscode.window.activeNotebookEditor.notebook.uri
-		// edit.replace(uri, cellRange, response);
+	// 	const uri = vscode.window.activeNotebookEditor.notebook.uri
+	// 	edit.replace(uri, cellRange, response);
 
-		// console.log(vscode.window.activeNotebookEditor(event2 => { event2.}))
+	// 	console.log(vscode.window.activeNotebookEditor(event2 => { event2.}))
 
 
 	// });
@@ -68,11 +67,11 @@ function activate(context) {
 		if (text !== '') {
 			try {
 				const responseContent = await sendMessageToServer(text);
-	
+
 				const activeCell = vscode.window.activeNotebookEditor.notebook.cellAt(vscode.window.activeNotebookEditor.selections[0].end);
 				console.log(activeCell)
 				const endOfCell = activeCell.document.lineAt(activeCell.document.lineCount - 1).range.end;
-	
+
 				// Create a WorkspaceEdit and insert the responseContent
 				const edit = new vscode.WorkspaceEdit();
 				edit.insert(activeCell.document.uri, endOfCell, '\n' + responseContent);
@@ -119,116 +118,70 @@ function activate(context) {
 		}
 	});
 
-	context.subscriptions.push(disposableToggleServer,textChangeListener);
+	context.subscriptions.push(disposableToggleServer, textChangeListener);
 }
 
 
 
-// function sendMessageToServer(prompt) {
-// 	const data = JSON.stringify({
-// 		messages: [
-// 			{
-// 				content: "You are a helpful assistant.",
-// 				role: "system"
-// 			},
-// 			{
-// 				content: prompt,
-// 				role: "user"
-// 			}
-// 		]
-// 	});
-
-// 	const options = {
-// 		hostname: 'localhost',
-// 		port: 8000,
-// 		path: '/v1/chat/completions',
-// 		method: 'POST',
-// 		headers: {
-// 			'Content-Type': 'application/json',
-// 			'Accept': 'application/json'
-// 		},
-// 	};
-
-// 	const req = http.request(options, (res) => {
-// 		let responseData = '';
-
-// 		res.on('data', (chunk) => {
-// 			responseData += chunk;
-// 		});
-
-// 		res.on('end', () => {
-// 			try {
-// 				const responseJson = JSON.parse(responseData);
-// 				console.log(responseJson.choices[0].message.content);
-// 			} catch (error) {
-// 				console.error(`Error parsing response: ${error.message}`);
-// 			}
-// 		});
-// 	});
-
-// 	req.on('error', (error) => {
-// 		console.error(`Error: ${error.message}`);
-// 	});
-
-// 	req.write(data);
-// 	req.end();
-// }
-
-
 async function sendMessageToServer(prompt) {
-    const data = JSON.stringify({
-        messages: [
-            {
-                content: "You are a helpful assistant.",
-                role: "system"
-            },
-            {
-                content: prompt,
-                role: "user"
-            }
-        ]
-    });
+	const data = JSON.stringify({
 
-    const options = {
-        hostname: 'localhost',
-        port: 8000,
-        path: '/v1/chat/completions',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-    };
+		messages: [
+			{
+				content: "You are a helpful assistant.",
+				role: "system"
+			},
+			{
+				content: prompt,
+				role: "user"
+			}
+		],
 
-    // Return a new Promise
-    return new Promise((resolve, reject) => {
-        const req = http.request(options, (res) => {
-            let responseData = '';
+		// max_tokens: 2048,
+		// temperature: 0.7,
+		// top_p: 1.0,
+	});
 
-            res.on('data', (chunk) => {
-                responseData += chunk;
-            });
+	const options = {
+		hostname: 'localhost',
+		port: 8000,
+		path: '/v1/chat/completions',
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Accept': 'application/json'
+		},
+	};
 
-            res.on('end', () => {
-                try {
-                    const responseJson = JSON.parse(responseData);
-                    // Resolve the promise with the content
-                    resolve(responseJson.choices[0].message.content);
-                } catch (error) {
-                    console.error(`Error parsing response: ${error.message}`);
-                    reject(error);
-                }
-            });
-        });
+	// Return a new Promise
+	return new Promise((resolve, reject) => {
+		const req = http.request(options, (res) => {
+			let responseData = '';
 
-        req.on('error', (error) => {
-            console.error(`Error: ${error.message}`);
-            reject(error);
-        });
+			res.on('data', (chunk) => {
+				responseData += chunk;
+			});
 
-        req.write(data);
-        req.end();
-    });
+			res.on('end', () => {
+				try {
+					const responseJson = JSON.parse(responseData);
+					// Resolve the promise with the content
+					resolve(responseJson.choices[0].message.content);
+				} catch (error) {
+					console.error(`Error parsing response: ${error.message}`);
+					reject(error);
+				}
+			});
+		});
+
+		req.on('error', (error) => {
+			console.error(`Error: ${error.message}`);
+			reject(error);
+		});
+
+		req.write(data);
+		req.end();
+	});
 }
 
 
