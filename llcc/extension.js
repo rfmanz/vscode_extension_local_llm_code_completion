@@ -23,6 +23,7 @@ function activate(context) {
 	const command = `bash -c "source '${condaBasePath}activate' 'llm_inference' && cd '${modelsPath}' && python3 -m llama_cpp.server --model mistral-7b-instruct-v0.1.Q4_K_M.gguf --n_gpu_layers 35"`;
 
 	
+	
 
 	// const activeEditor = vscode.NotebookDocument;
 	// console.log(vscode.window.activeNotebookEditor.selection[0]);
